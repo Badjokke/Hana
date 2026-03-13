@@ -5,7 +5,7 @@ BPF_OBJ = ${BPF_C:.c=.o}
 
 BPF_PINNED_PATH := /sys/fs/bpf/$(TARGET)
 XDP_NAME := hana_lb
-DEV := wlo1
+DEV := enx00e04cbbca1d
 
 xdp: $(BPF_OBJ)
 	sudo bpftool net detach xdpgeneric dev $(DEV)
