@@ -4,14 +4,14 @@ BPF_C = ${BPF_TARGET:=.c}
 BPF_OBJ = ${BPF_C:.c=.o}
 
 BPF_PINNED_PATH := /sys/fs/bpf/$(TARGET)
-XDP_NAME := hana_lb
+xdp_NAME := hana_lb
 DEV := enx00e04cbbca1d
 
 xdp: $(BPF_OBJ)
-	sudo bpftool net detach xdpgeneric dev $(DEV)
+	sudo bpftool net detach xdp dev $(DEV)
 	sudo rm -f $(BPF_PINNED_PATH)
 	sudo bpftool prog load $(BPF_OBJ) $(BPF_PINNED_PATH)
-	sudo bpftool net attach xdpgeneric pinned $(BPF_PINNED_PATH) dev $(DEV)
+	sudo bpftool net attach xdp pinned $(BPF_PINNED_PATH) dev $(DEV)
 
 $(BPF_OBJ): %.o: %.c
 	clang -S \
@@ -24,7 +24,7 @@ $(BPF_OBJ): %.o: %.c
 	llc -march=bpf -filetype=obj -O2 -o $@ ${@:.o=.ll}
 
 clean:
-	sudo bpftool net detach xdpgeneric dev $(DEV)
+	sudo bpftool net detach xdp dev $(DEV)
 	sudo rm -f $(BPF_PINNED_PATH)
 	rm -f $(BPF_OBJ)
 	rm -f ${BPF_OBJ:.o=.ll}
