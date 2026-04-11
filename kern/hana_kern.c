@@ -16,7 +16,7 @@
 #define memcpy(dest, src, n) __builtin_memcpy((dest), (src), n)
 #endif
 
-static __always_inline void* data_pointer_at(void* data, void* data_end, __u64 offset, __u64 size){
+static  void* data_pointer_at(void* data, void* data_end, __u64 offset, __u64 size){
 	if (data + offset + size > data_end){
 		return NULL;
 	}
@@ -49,7 +49,7 @@ __u32 pseudoheader_checksum(struct iphdr* iphdr) {
 	return sum;
 }
 
-static __always_inline __u16 udp_checksum(struct udphdr* udphdr, struct iphdr* iphdr, void* data_end){
+static  __u16 udp_checksum(struct udphdr* udphdr, struct iphdr* iphdr, void* data_end){
 	__u32 sum = pseudoheader_checksum(iphdr);
 	__u16* bfr = (__u16*) udphdr;
 	__u16 count = MAX_PAYLOAD_SIZE;
@@ -72,7 +72,7 @@ static __always_inline __u16 udp_checksum(struct udphdr* udphdr, struct iphdr* i
 	return (__u16) ~sum;
 }
 
-static __always_inline __be32 ip_to_network_addr(__u8 ip[4]){
+static  __be32 ip_to_network_addr(__u8 ip[4]){
 	__be32 ip_network_order = 0;
 	for(int i = 0; i < 4; i++) {
 		ip_network_order |= (__be32)ip[i] << (i * 8);
@@ -80,7 +80,7 @@ static __always_inline __be32 ip_to_network_addr(__u8 ip[4]){
 	return ip_network_order;
 }
 
-static __always_inline int forward_via_gateway(struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, void* data_end){
+static  int forward_via_gateway(struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, void* data_end){
 	__u8 destination_ip[4] = {192, 168, 1, 107};
 	char gateway_mac[ETH_ALEN] = {0x84, 0x2f, 0x57, 0x4e, 0x34, 0xd7};
 
@@ -97,7 +97,7 @@ static __always_inline int forward_via_gateway(struct ethhdr* ether_header, stru
 	return XDP_TX;
 }
 
-static __always_inline int forward_ip_traffic(void* data, void* data_end, struct ethhdr* ether_header){
+static  int forward_ip_traffic(void* data, void* data_end, struct ethhdr* ether_header){
 	struct iphdr* iphdr = (struct iphdr*) data_pointer_at(data, data_end, ETH_HDR_SIZE, IP_HDR_SIZE);
 	if (iphdr == NULL) {
 		return XDP_DROP;
