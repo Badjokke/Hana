@@ -15,10 +15,6 @@ static void* data_pointer_at(void* data, void* data_end, __u64 offset, __u64 siz
 	return (void*) (data + offset);
 }
 
-static int __always_inline is_empty_node_struct(struct node* node){
-	return node->port == 0 && node->ip_addr == 0 && node->mac_addr[0] == 0;
-}
-
 static struct node* retrieve_node_from_target_nodes() {
 	__u32 node_count_index = 0;
 	__u32* node_count = bpf_map_lookup_elem(&counter_map, &node_count_index);
@@ -28,16 +24,6 @@ static struct node* retrieve_node_from_target_nodes() {
 	__u32 node_pointer = bpf_get_prandom_u32() % (*node_count);
 	struct node* node = bpf_map_lookup_elem(&target_nodes, &node_pointer);
 	return node;
-}
-
-// if MASQ node is configured from userspace we will hide source node under shared mac/ip/port
-static struct node* retrieve_MASQ(){
-	__u32 key = 0;
-	struct node* masq_node = bpf_map_lookup_elem(&masquerade, &key);
-	if (is_empty_node_struct(masq_node)){
-		return NULL;
-	}
-	return masq_node;
 }
 
 static struct conntrack_node* retrieve_node_from_conntrack(struct iphdr* iphdr, struct udphdr* udp_header){
@@ -57,21 +43,12 @@ static void create_conntrack_entry(struct node* target_node, struct iphdr* iphdr
 }
 
 static void apply_node_to_packet(struct node* node, struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, void* data_end){
-	struct node* masq_node = retrieve_MASQ();
-	if (masq_node != NULL){
-		static const char fmt[] = "MASQ node found.";
-		bpf_trace_printk(fmt, sizeof(fmt));
-		memcpy(ether_header->h_source, masq_node->mac_addr, ETH_ALEN);
-		udp_header->source = masq_node->port != 0 ? masq_node->port : node->port;
-		iphdr->saddr = node->ip_addr;
-	}
+	memcpy(ether_header->h_source, ether_header->h_dest, ETH_ALEN);
 	memcpy(ether_header->h_dest, node->mac_addr, ETH_ALEN);
 	iphdr->daddr = node->ip_addr;
 	iphdr->check = ip_checksum(iphdr, IP_HDR_SIZE);
 	udp_header->dest = node->port;
 	udp_header->check = udp_checksum(udp_header, iphdr, data_end);
-	static const char fmt[] = "%d %d";
-	bpf_trace_printk(fmt, sizeof(fmt), iphdr->daddr, udp_header->dest);
 }
 
 static int conntrack_forward(struct conntrack_node* conntrack_node, struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, void* data_end){

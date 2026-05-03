@@ -22,6 +22,7 @@ struct node {
   __be16 port;
 };
 
+// timestamp is used to clear entries from que with no response within configured time period
 struct conntrack_node {
   struct node node;
   __u64 timestamp;
@@ -42,13 +43,6 @@ struct {
   __type(value, struct node);
   __uint(max_entries, TARGET_NODE_SIZE);
 } target_nodes SEC(".maps");
-
-struct {
-  __uint(type, BPF_MAP_TYPE_ARRAY);
-  __type(key, __u32);
-  __type(value, struct node);
-  __uint(max_entries, 1);
-} masquerade SEC(".maps");
 
 
 // used to send responses
