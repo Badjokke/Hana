@@ -3,7 +3,9 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #define MAX_PAYLOAD_SIZE 1480
-static __u16 ip_checksum(__u16* bfr, int count) {
+static __u16 ip_checksum(struct iphdr* iphdr, int count) {
+	iphdr->check = 0;
+	__u16* bfr = (__u16*) iphdr;
 	unsigned long sum = 0;
 	while (count > 1) {
 		sum += *bfr;
@@ -30,6 +32,7 @@ static __u32 pseudoheader_checksum(struct iphdr* iphdr) {
 }
 
 static __u16 udp_checksum(struct udphdr* udphdr, struct iphdr* iphdr, void* data_end){
+	udphdr->check = 0;
        __u32 sum = pseudoheader_checksum(iphdr);
        __u16* bfr = (__u16*) udphdr;
        __u16 count = MAX_PAYLOAD_SIZE;
