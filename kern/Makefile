@@ -29,7 +29,6 @@ $(BPF_LINKED): $(BPF_LLS)
 		-target bpf \
 		-I../libbpf/src\
 		-Wall \
-		-Werror \
 		-O2 \
 		-MMD -MP \
 		-emit-llvm -c -o ${@:.o=.ll} $<
