@@ -3,7 +3,7 @@
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
 #define TARGET_NODE_SIZE 10
-#define CONN_TRACK_SIZE 20
+#define CONN_TRACK_SIZE 200
 /* XDP load balancer for ip protocol family. Current support for UDP.*/
 // 1500 mtu ethernet frame for standard NIC without IP header size
 #define IP4_PROT_ETH_TYPE 0x0008

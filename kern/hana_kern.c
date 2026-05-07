@@ -35,27 +35,26 @@ static __u16 get_ephemeral_port_number(){
 }
 
 static struct node* retrieve_node_from_conntrack(struct iphdr* iphdr, struct udphdr* udp_header){
-	__u32 key = iphdr->saddr ^ udp_header->source;
+	__u32 key = iphdr->saddr ^ udp_header->dest;
 	return bpf_map_lookup_elem(&conn_track, &key);
 }
 
-static void create_conntrack_entry(struct node* target_node, struct iphdr* iphdr, struct udphdr* udp_header, struct ethhdr* ether_header){
+static void create_conntrack_entry(struct node* target_node, struct iphdr* iphdr, struct udphdr* udp_header, struct ethhdr* ether_header, __be16 ephemeral_port){
 	struct node node = {};
 	memcpy(node.mac_addr, ether_header->h_source, ETH_ALEN);
-	node.ip_addr =  iphdr->saddr;
+	node.ip_addr = iphdr->saddr;
 	node.port = udp_header->source;
-	__u32 key = target_node->ip_addr ^ udp_header->source;
+	__u32 key = target_node->ip_addr ^ ephemeral_port;
 	bpf_map_update_elem(&conn_track, &key, &node, BPF_ANY);
 }
 
-static void apply_node_to_packet(struct node* node, struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, void* data_end){
+static void apply_node_to_packet(struct node* node, struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, __be16 ephemeral_port){
 	memcpy(ether_header->h_source, ether_header->h_dest, ETH_ALEN);
 	memcpy(ether_header->h_dest, node->mac_addr, ETH_ALEN);
+	iphdr->saddr = iphdr->daddr;
 	iphdr->daddr = node->ip_addr;
-	iphdr->check = ip_checksum(iphdr, IP_HDR_SIZE);
 	udp_header->dest = node->port;
-	udp_header->source = bpf_htons(get_ephemeral_port_number());
-	udp_header->check = udp_checksum(udp_header, iphdr, data_end);
+	udp_header->source = ephemeral_port;
 }
 
 static int forward_traffic_to_node(struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, void* data_end){
@@ -63,13 +62,18 @@ static int forward_traffic_to_node(struct ethhdr* ether_header, struct iphdr* ip
 	if (target_node == NULL) {
 		target_node = retrieve_node_from_target_nodes();
 	}
+	
 	if (target_node == NULL){
 		static const char fmt[] = "No target nodes available. Dropping traffic. Saddr: %d source: %d";
 		bpf_trace_printk(fmt, sizeof(fmt), iphdr->saddr, udp_header->source);
 		return XDP_DROP;
 	}
-	apply_node_to_packet(target_node, ether_header, iphdr, udp_header, data_end);
-        create_conntrack_entry(target_node, iphdr, udp_header, ether_header);
+	__be16 ephemeral_port = bpf_htons(get_ephemeral_port_number());
+
+        create_conntrack_entry(target_node, iphdr, udp_header, ether_header, ephemeral_port);
+	apply_node_to_packet(target_node, ether_header, iphdr, udp_header, ephemeral_port);
+	iphdr->check = ip_checksum(iphdr, IP_HDR_SIZE);
+	udp_header->check = udp_checksum(udp_header, iphdr, data_end);
 	return XDP_TX;
 }
 
