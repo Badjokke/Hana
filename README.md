@@ -43,3 +43,9 @@ network_interface: "lo"
 The kernel core is built on top of [EBPF](https://ebpf.io/) which is shipped by default with linux kernel.  
 The userspace program is currently build on top of cillium's ebpf library written in pure Go. [Check them out](https://github.com/cilium/ebpf).
 
+# Build and run
+run:
+```bash
+go generate && go build
+sudo ./hana-ebpf
+```
