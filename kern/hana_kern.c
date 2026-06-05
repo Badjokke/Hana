@@ -58,16 +58,11 @@ static void apply_node_to_ip_ether_headers(struct node* node, struct ethhdr* eth
 }
 
 static int forward_tcp_traffic_to_node(struct ethhdr* ether_header, struct iphdr* iphdr, struct tcphdr* tcphdr, void* data_end){
-	static const char fmt[] = "Forwarding TCP";
-	bpf_trace_printk(fmt, sizeof(fmt));
-
 	struct node* target_node = retrieve_node_from_conntrack(iphdr, tcphdr->dest);
 	if (target_node == NULL) {
 		target_node = retrieve_node_from_target_nodes();
 	}
 	if (target_node == NULL){
-		static const char fmt[] = "No target nodes available. Dropping TCP traffic. Saddr: %d source: %d";
-		bpf_trace_printk(fmt, sizeof(fmt), iphdr->saddr, tcphdr->source);
 		return XDP_DROP;
 	}
 
@@ -83,15 +78,11 @@ static int forward_tcp_traffic_to_node(struct ethhdr* ether_header, struct iphdr
 }
 
 static int forward_udp_traffic_to_node(struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, void* data_end){
-	static const char fmt[] = "Forwarding UDP";
-	bpf_trace_printk(fmt, sizeof(fmt));
 	struct node* target_node = retrieve_node_from_conntrack(iphdr, udp_header->dest);
 	if (target_node == NULL) {
 		target_node = retrieve_node_from_target_nodes();
 	}
 	if (target_node == NULL){
-		static const char fmt[] = "No target nodes available. Dropping UDP traffic. Saddr: %d source: %d";
-		bpf_trace_printk(fmt, sizeof(fmt), iphdr->saddr, udp_header->source);
 		return XDP_DROP;
 	}
 	__be16 ephemeral_port = bpf_htons(get_ephemeral_port_number());
@@ -119,9 +110,7 @@ static int forward_traffic(void* data, void* data_end, struct ethhdr* ether_head
 		return forward_udp_traffic_to_node(ether_header, iphdr, udp_header, data_end);
 	}
 	if (iphdr->protocol != TCP_PROT) {
-		static const char fmt[] = "Unknown prot %d";
-		bpf_trace_printk(fmt, sizeof(fmt), bpf_ntohs(iphdr->protocol));
-		return XDP_DROP;
+		return XDP_PASS;
 	}
 
 	struct tcphdr* tcphdr = (struct tcphdr*) data_pointer_at(data, data_end, ETH_HDR_SIZE + IP_HDR_SIZE, sizeof(struct tcphdr));
