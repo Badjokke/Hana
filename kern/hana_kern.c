@@ -83,7 +83,6 @@ static int forward_traffic(void* data, void* data_end, struct ethhdr* ether_head
 	}
 	if (iphdr->protocol != UDP_PROT ){
 		return XDP_PASS;
-
 	}
 	
 	struct udphdr* udp_header = (struct udphdr*) data_pointer_at(data, data_end, ETH_HDR_SIZE + IP_HDR_SIZE, sizeof(struct udphdr));
