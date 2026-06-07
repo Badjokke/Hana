@@ -31,7 +31,7 @@ static __u16 get_ephemeral_port_number(){
 	__u32 port_number_index = 0;
 	__u32* port_number = bpf_map_lookup_elem(&port_counter, &port_number_index);
 	__sync_fetch_and_add(port_number, 1);
-	__u16 ephemeral_port_number = *port_number % (2 << 16);
+	__u16 ephemeral_port_number = *port_number % (1 << 16);
 	return ephemeral_port_number;
 }
 
@@ -74,7 +74,7 @@ static int forward_tcp_traffic_to_node(struct ethhdr* ether_header, struct iphdr
 
 	iphdr->check = ip_checksum(iphdr, IP_HDR_SIZE);
 	tcphdr->check = tcp_checksum(tcphdr, iphdr, data_end);
-	return XDP_PASS;
+	return XDP_TX;
 }
 
 static int forward_udp_traffic_to_node(struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, void* data_end){
@@ -93,7 +93,7 @@ static int forward_udp_traffic_to_node(struct ethhdr* ether_header, struct iphdr
 
 	iphdr->check = ip_checksum(iphdr, IP_HDR_SIZE);
 	udp_header->check = udp_checksum(udp_header, iphdr, data_end);
-	return XDP_PASS;
+	return XDP_TX;
 }
 
 static int forward_traffic(void* data, void* data_end, struct ethhdr* ether_header){
