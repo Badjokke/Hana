@@ -1,12 +1,10 @@
 #pragma once
-#include <linux/tcp.h>
 #include <linux/types.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <bpf/bpf_endian.h>
 #define MAX_PAYLOAD_SIZE 1480
 //network order
-#define TCP_PROT 0x6
 static __u16 ip_checksum(struct iphdr* iphdr, int count) {
 	iphdr->check = 0;
 	__u16* bfr = (__u16*) iphdr;
@@ -58,16 +56,6 @@ static __u32 payload_sum(__u16* payload, void* data_end){
                sum += * ((__u8*) payload) << 8;
        }
 	return sum;
-}
-
-static __u16 tcp_checksum(struct tcphdr* tcphdr, struct iphdr* iphdr, void* data_end){
-	tcphdr->check = 0;
-        __u32 sum = pseudoheader_checksum(iphdr);
-	unsigned short tcp_len = bpf_ntohs(iphdr->tot_len) - (iphdr->ihl << 2);
-	sum += TCP_PROT;
-	sum += tcp_len;
-	sum += payload_sum((__u16*) tcphdr, data_end);
-	return fold(sum);
 }
 
 static __u16 udp_checksum(struct udphdr* udphdr, struct iphdr* iphdr, void* data_end){

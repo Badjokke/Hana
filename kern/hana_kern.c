@@ -4,7 +4,6 @@
 #include <bpf/bpf_endian.h>
 #include <linux/if_ether.h>
 #include <linux/udp.h>
-#include <linux/tcp.h>
 #include <linux/ip.h>
 #include "hana_kern.h"
 #include "checksum.h"
@@ -57,25 +56,6 @@ static void apply_node_to_ip_ether_headers(struct node* node, struct ethhdr* eth
 	iphdr->daddr = node->ip_addr;
 }
 
-static int forward_tcp_traffic_to_node(struct ethhdr* ether_header, struct iphdr* iphdr, struct tcphdr* tcphdr, void* data_end){
-	struct node* target_node = retrieve_node_from_conntrack(iphdr, tcphdr->dest);
-	if (target_node == NULL) {
-		target_node = retrieve_node_from_target_nodes();
-	}
-	if (target_node == NULL){
-		return XDP_DROP;
-	}
-
-	__be16 ephemeral_port = bpf_htons(get_ephemeral_port_number());
-        create_conntrack_entry(target_node, iphdr, tcphdr->source, ether_header, ephemeral_port);
-	apply_node_to_ip_ether_headers(target_node, ether_header, iphdr);
-	tcphdr->dest = target_node->port;
-	tcphdr->source = ephemeral_port;
-
-	iphdr->check = ip_checksum(iphdr, IP_HDR_SIZE);
-	tcphdr->check = tcp_checksum(tcphdr, iphdr, data_end);
-	return XDP_TX;
-}
 
 static int forward_udp_traffic_to_node(struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, void* data_end){
 	struct node* target_node = retrieve_node_from_conntrack(iphdr, udp_header->dest);
@@ -101,24 +81,16 @@ static int forward_traffic(void* data, void* data_end, struct ethhdr* ether_head
 	if (iphdr == NULL) {
 		return XDP_DROP;
 	}
-	
-	if (iphdr->protocol == UDP_PROT ) {
-		struct udphdr* udp_header = (struct udphdr*) data_pointer_at(data, data_end, ETH_HDR_SIZE + IP_HDR_SIZE, sizeof(struct udphdr));
-		if ( udp_header == NULL ) {
-			return XDP_DROP;
-		}
-		return forward_udp_traffic_to_node(ether_header, iphdr, udp_header, data_end);
-	}
-	if (iphdr->protocol != TCP_PROT) {
+	if (iphdr->protocol != UDP_PROT ){
 		return XDP_PASS;
-	}
 
-	struct tcphdr* tcphdr = (struct tcphdr*) data_pointer_at(data, data_end, ETH_HDR_SIZE + IP_HDR_SIZE, sizeof(struct tcphdr));
-	if (tcphdr == NULL){
+	}
+	
+	struct udphdr* udp_header = (struct udphdr*) data_pointer_at(data, data_end, ETH_HDR_SIZE + IP_HDR_SIZE, sizeof(struct udphdr));
+	if ( udp_header == NULL ) {
 		return XDP_DROP;
 	}
-	
-	return forward_tcp_traffic_to_node(ether_header, iphdr, tcphdr, data_end);
+	return forward_udp_traffic_to_node(ether_header, iphdr, udp_header, data_end);
 }
 
 SEC("xdp")

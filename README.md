@@ -16,7 +16,7 @@ To achieve this indirect communication, the XDP load balancer uses ephemeral sou
 ```
 The backward pass is basically the same regarding the ip information - `source_addr` and `source_port` from the `[TARGET SERVER]` will be used to compute the `key`.  
 The data type of Map is [LRU](https://docs.ebpf.io/linux/map-type/BPF_MAP_TYPE_LRU_HASH/). If no stored data are found under the `key`, the communication is dropped. 
-Hana forwards `TCP` and `UDP` traffic directly bypassing the kernel (avoids `sockbuf` allocation). For any other protocol the packet is passed to the kernel stack.
+Hana forwards `UDP` traffic directly bypassing the kernel (avoids `sockbuf` allocation). For any other protocol the packet is passed to the kernel stack.
 
 # Configuration
 Below is a sample configuration in yaml which is understood by the userspace program and loaded on start of the application.
@@ -27,7 +27,7 @@ nodes:
   - node:
         # ipv4 address - replace with your target server
       ip_addr: "10.0.0.2"
-        # port to which all the TCP/UDP traffic will be forwarded to
+        # port to which all the UDP traffic will be forwarded to
       port: 8000
         # mac address of the network device on the destination host
       mac_addr: "00:e0:4c:bb:ca:1d"
