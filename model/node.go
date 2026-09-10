@@ -15,15 +15,12 @@ const MAC_ADDR_DELIMITER = ":"
 type Node struct {
 	Mac_addr string `yaml:"mac_addr"`
 	Ip_addr  string `yaml:"ip_addr"`
-	Port     uint16 `yaml:"port"`
 }
 
 type TargetNode struct {
 	Mac_addr [ETH_ALEN]byte
 	Pad0     [2]byte
 	Ip_addr  uint32
-	Port     uint16
-	Pad1     [2]byte
 }
 
 func TargetNodeFromNode(node *Node) (*TargetNode, error) {
@@ -35,7 +32,7 @@ func TargetNodeFromNode(node *Node) (*TargetNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &TargetNode{Ip_addr: ip_addr_be32, Mac_addr: [ETH_ALEN]byte(mac_addr_bytes), Port: node.Port_to_be()}, nil
+	return &TargetNode{Ip_addr: ip_addr_be32, Mac_addr: [ETH_ALEN]byte(mac_addr_bytes)}, nil
 }
 
 func (node *Node) Ip_addr_to_be32() (uint32, error) {
@@ -69,11 +66,4 @@ func (node *Node) Mac_addr_to_bytes() ([]byte, error) {
 		result[i] = byte(tmp)
 	}
 	return result, nil
-}
-
-func (node *Node) Port_to_be() uint16 {
-	var be_port uint16 = 0
-	be_port |= (node.Port & 0xFF) << 8
-	be_port |= (node.Port >> 8) & 0xFF
-	return be_port
 }

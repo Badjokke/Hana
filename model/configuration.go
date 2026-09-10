@@ -6,12 +6,20 @@ import (
 	"os"
 )
 
+type Healthcheck struct {
+	Port uint16 `yaml:"port"`
+	Message string `yaml:"message"`
+	Response string `yaml:"response"`
+}
+
 type NodeList struct {
 	Nodes Node `yaml:"node"`
 }
+
 type Properties struct {
 	Nodes            []NodeList `yaml:"nodes"`
 	NetworkInterface string     `yaml:"network_interface"`
+	Healthcheck Healthcheck `yaml:"healthcheck"`
 }
 
 // panics on error
@@ -27,3 +35,4 @@ func (properties *Properties) ReadPropertiesFile(path string) {
 		panic(err)
 	}
 }
+
