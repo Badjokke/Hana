@@ -15,10 +15,11 @@ static void* data_pointer_at(void* data, void* data_end, __u64 offset, __u64 siz
 	return (void*) (data + offset);
 }
 
+
 static struct node* retrieve_node_from_target_nodes() {
 	__u32 node_count_index = 0;
 	__u32* node_count = bpf_map_lookup_elem(&counter_map, &node_count_index);
-	if ((*node_count) == 0) {
+	if (node_count == NULL || (*node_count) == 0) {
 		return NULL;
 	}
 	__u32 node_pointer = bpf_get_prandom_u32() % (*node_count);
@@ -42,12 +43,11 @@ static int forward_udp_traffic_to_node(struct ethhdr* ether_header, struct iphdr
 		return XDP_DROP;
 	}
 	apply_node_to_ip_ether_headers(target_node, ether_header, iphdr);
-	udp_header->dest = target_node->port;
-
 	iphdr->check = ip_checksum(iphdr, IP_HDR_SIZE);
 	udp_header->check = udp_checksum(udp_header, iphdr, data_end);
 	return XDP_TX;
 }
+
 
 static int forward_traffic(void* data, void* data_end, struct ethhdr* ether_header){
 	struct iphdr* iphdr = (struct iphdr*) data_pointer_at(data, data_end, ETH_HDR_SIZE, IP_HDR_SIZE);
@@ -57,7 +57,7 @@ static int forward_traffic(void* data, void* data_end, struct ethhdr* ether_head
 	if (iphdr->protocol != UDP_PROT ){
 		return XDP_PASS;
 	}
-	
+
 	struct udphdr* udp_header = (struct udphdr*) data_pointer_at(data, data_end, ETH_HDR_SIZE + IP_HDR_SIZE, sizeof(struct udphdr));
 	if ( udp_header == NULL ) {
 		return XDP_DROP;

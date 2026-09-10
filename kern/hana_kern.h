@@ -18,7 +18,6 @@
 struct node {
   unsigned char mac_addr[ETH_ALEN];
   __be32 ip_addr;
-  __be16 port;
 };
 
 // stores the number of inserted target nodes at index 0
