@@ -26,27 +26,6 @@ static struct node* retrieve_node_from_target_nodes() {
 	return node;
 }
 
-static __u16 get_ephemeral_port_number(){
-	__u32 port_number_index = 0;
-	__u32* port_number = bpf_map_lookup_elem(&port_counter, &port_number_index);
-	__sync_fetch_and_add(port_number, 1);
-	__u16 ephemeral_port_number = *port_number % (1 << 16);
-	return ephemeral_port_number;
-}
-
-static struct node* retrieve_node_from_conntrack(struct iphdr* iphdr, __be16 dest_port){
-	__u32 key = iphdr->saddr ^ dest_port;
-	return bpf_map_lookup_elem(&conn_track, &key);
-}
-
-static void create_conntrack_entry(struct node* target_node, struct iphdr* iphdr, __be16 source_port, struct ethhdr* ether_header, __be16 ephemeral_port){
-	struct node node = {};
-	memcpy(node.mac_addr, ether_header->h_source, ETH_ALEN);
-	node.ip_addr = iphdr->saddr;
-	node.port = source_port;
-	__u32 key = target_node->ip_addr ^ ephemeral_port;
-	bpf_map_update_elem(&conn_track, &key, &node, BPF_ANY);
-}
 
 // applies node to ip and ether header
 static void apply_node_to_ip_ether_headers(struct node* node, struct ethhdr* ether_header, struct iphdr* iphdr){
@@ -58,18 +37,12 @@ static void apply_node_to_ip_ether_headers(struct node* node, struct ethhdr* eth
 
 
 static int forward_udp_traffic_to_node(struct ethhdr* ether_header, struct iphdr* iphdr, struct udphdr* udp_header, void* data_end){
-	struct node* target_node = retrieve_node_from_conntrack(iphdr, udp_header->dest);
-	if (target_node == NULL) {
-		target_node = retrieve_node_from_target_nodes();
-	}
+	struct node* target_node = retrieve_node_from_target_nodes();
 	if (target_node == NULL){
 		return XDP_DROP;
 	}
-	__be16 ephemeral_port = bpf_htons(get_ephemeral_port_number());
-        create_conntrack_entry(target_node, iphdr, udp_header->source, ether_header, ephemeral_port);
 	apply_node_to_ip_ether_headers(target_node, ether_header, iphdr);
 	udp_header->dest = target_node->port;
-	udp_header->source = ephemeral_port;
 
 	iphdr->check = ip_checksum(iphdr, IP_HDR_SIZE);
 	udp_header->check = udp_checksum(udp_header, iphdr, data_end);
