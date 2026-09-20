@@ -13,7 +13,7 @@ type Healthcheck struct {
 }
 
 type NodeList struct {
-	Nodes Node `yaml:"node"`
+	Node Node `yaml:"node"`
 }
 
 type Properties struct {

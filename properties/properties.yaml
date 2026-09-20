@@ -1,12 +1,9 @@
 nodes:
   - node:
-      ip_addr: "10.0.0.2"
-      mac_addr: "00:e0:4c:bb:ca:1d"
-  - node:
-      ip_addr: "10.0.0.3"
-      mac_addr: "00:e0:4c:bb:ca:1d"
+      ip_addr: "192.168.1.103"
+      mac_addr: "a0:ad:9f:bc:13:5a"
 healthcheck:
-  port: 6443
+  port: 9001
   message: "health"
-  response: "OK"
+  response: "HELLO_FROM_SERVER"
 network_interface: "lo"

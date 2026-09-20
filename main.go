@@ -1,14 +1,16 @@
 package main
 
 import (
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
-	"github.com/cilium/ebpf/rlimit"
 	model "hana-ebpf/model"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"time"
+
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/rlimit"
 )
 
 func attachXDPToNetworkInterface(ifname string, objs hanaObjects) link.Link {
@@ -28,11 +30,11 @@ func attachXDPToNetworkInterface(ifname string, objs hanaObjects) link.Link {
 	return link
 }
 
-func insert_target_node(nodeList []model.NodeList, targetNodes *ebpf.Map, counterMap *ebpf.Map) {
+func insertTargetNode(nodeList []model.NodeList, targetNodes *ebpf.Map, counterMap *ebpf.Map) {
 	log.Printf("Inserting nodes to targetNodesMap")
 	nodeCount := uint32(len(nodeList))
 	for i := uint32(0); i < nodeCount; i++ {
-		target_node, err := model.TargetNodeFromNode(&nodeList[i].Nodes)
+		target_node, err := model.TargetNodeFromNode(&nodeList[i].Node)
 		if err != nil {
 			panic(err)
 		}
@@ -43,6 +45,18 @@ func insert_target_node(nodeList []model.NodeList, targetNodes *ebpf.Map, counte
 	}
 	counterMap.Update(uint32(0), &nodeCount, ebpf.UpdateAny)
 	log.Printf("Inserted %d nodes into map", nodeCount)
+}
+
+func startHealthcheck(nodeList [] model.NodeList, healthCheck* model.Healthcheck){
+	healthChan := make(chan HealthcheckEnvelope, len(nodeList))
+	for ;;{
+		for i := 0; i < len(nodeList); i++ {
+			go CheckHealth(nodeList[i].Node, healthCheck, healthChan, uint32(i));
+			healthCheckResult := <- healthChan
+			log.Println("Result of healthcheck: ", healthCheckResult.Alive, " for node : ", healthCheckResult.NodeId)
+			time.Sleep(5 * time.Second)
+	}
+}
 }
 
 func main() {
@@ -64,8 +78,9 @@ func main() {
 	log.Println(properties)
 
 	ifname := properties.NetworkInterface
-
-	insert_target_node(properties.Nodes, objs.TargetNodes, objs.CounterMap)
+	log.Println("Checking health of nodes")
+	go startHealthcheck(properties.Nodes, &properties.Healthcheck);
+	insertTargetNode(properties.Nodes, objs.TargetNodes, objs.CounterMap)
 	link := attachXDPToNetworkInterface(ifname, objs)
 	defer link.Close()
 
