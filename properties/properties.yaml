@@ -6,4 +6,4 @@ healthcheck:
   port: 9001
   message: "health"
   response: "HELLO_FROM_SERVER"
-network_interface: "lo"
+network_interface: "wlo1"

@@ -30,33 +30,71 @@ func attachXDPToNetworkInterface(ifname string, objs hanaObjects) link.Link {
 	return link
 }
 
-func insertTargetNode(nodeList []model.NodeList, targetNodes *ebpf.Map, counterMap *ebpf.Map) {
-	log.Printf("Inserting nodes to targetNodesMap")
-	nodeCount := uint32(len(nodeList))
-	for i := uint32(0); i < nodeCount; i++ {
-		target_node, err := model.TargetNodeFromNode(&nodeList[i].Node)
+func whiteListTargetNodes(targetNodes [] model.NodeList, whiteListIps *ebpf.Map){
+		tmp := make([] uint32, 0, len(targetNodes))
+		nodeIps := make([] uint32, 0, len(targetNodes))
+		for i := 0; i < len(targetNodes); i++ {
+			targetNode, err := model.TargetNodeFromNode(&targetNodes[i].Node)
+			if err != nil {
+				panic(err);
+			}
+			nodeIps = append(nodeIps, targetNode.Ip_addr)
+			tmp = append(tmp, 1)
+		}
+		updateCount, err := whiteListIps.BatchUpdate(nodeIps, tmp, nil)
 		if err != nil {
 			panic(err)
 		}
-		err = targetNodes.Update(i, target_node, ebpf.UpdateAny)
-		if err != nil {
-			panic(err)
-		}
-	}
-	counterMap.Update(uint32(0), &nodeCount, ebpf.UpdateAny)
-	log.Printf("Inserted %d nodes into map", nodeCount)
+		log.Printf("Whitelisted %d ips", updateCount)
 }
 
-func startHealthcheck(nodeList [] model.NodeList, healthCheck* model.Healthcheck){
-	healthChan := make(chan HealthcheckEnvelope, len(nodeList))
-	for ;;{
-		for i := 0; i < len(nodeList); i++ {
-			go CheckHealth(nodeList[i].Node, healthCheck, healthChan, uint32(i));
-			healthCheckResult := <- healthChan
-			log.Println("Result of healthcheck: ", healthCheckResult.Alive, " for node : ", healthCheckResult.NodeId)
-			time.Sleep(5 * time.Second)
+func updateNodeMap(healthyNodesChannel chan [] model.Node, targetNodes *ebpf.Map, counterMap *ebpf.Map) {
+	for ;; {
+		log.Printf("Waiting for healthy nodes")
+		healthyNodes := <- healthyNodesChannel
+		if len(healthyNodes) == 0 {
+			log.Printf("No nodes are healthy")
+			continue;
+		}
+		log.Printf("Inserting nodes to targetNodesMap")
+		nodeCount := uint32(len(healthyNodes))
+		indexes := make([] uint32, 0, nodeCount)
+		nodesMapped := make([] model.TargetNode,0, nodeCount)
+		for i := uint32(0); i < nodeCount; i++ {
+			targetNode, err := model.TargetNodeFromNode(&healthyNodes[i])
+			if err != nil {
+				panic(err)
+			}
+			indexes = append(indexes, i)
+			nodesMapped = append(nodesMapped, *targetNode)
+		}
+		updatedCount, err := targetNodes.BatchUpdate(indexes, nodesMapped, &ebpf.BatchOptions{ElemFlags: 0, Flags: uint64(ebpf.UpdateAny)});
+		if err != nil {
+			panic(err)
+		}
+		counterMap.Update(uint32(0), &nodeCount, ebpf.UpdateAny)
+		log.Printf("Inserted %d nodes into map %s", updatedCount, healthyNodes)
 	}
 }
+
+func startHealthcheck(nodeList [] model.NodeList, healthCheck* model.Healthcheck, healthyNodesChannel chan [] model.Node){
+	log.Println("Checking health of nodes")
+	healthChan := make(chan HealthcheckEnvelope, len(nodeList))
+	for ;;{
+		healthyNodesId := make([]model.Node, 0, len(nodeList))
+		for i := 0; i < len(nodeList); i++ {
+			go CheckHealth(nodeList[i].Node, healthCheck, healthChan, uint32(i));
+		}
+		for i := 0; i < len(nodeList); i++ {
+			healthCheckResult := <- healthChan
+			log.Println("Result of healthcheck: ", healthCheckResult.Alive, " for node : ", healthCheckResult.NodeId)
+			if healthCheckResult.Alive {
+				healthyNodesId = append(healthyNodesId, nodeList[healthCheckResult.NodeId].Node)
+			}
+		}
+		healthyNodesChannel <- healthyNodesId
+		time.Sleep(30 * time.Second)
+	}
 }
 
 func main() {
@@ -77,10 +115,11 @@ func main() {
 	properties.ReadPropertiesFile(os.Args[1])
 	log.Println(properties)
 
+	healthyNodesChannel := make(chan [] model.Node)
 	ifname := properties.NetworkInterface
-	log.Println("Checking health of nodes")
-	go startHealthcheck(properties.Nodes, &properties.Healthcheck);
-	insertTargetNode(properties.Nodes, objs.TargetNodes, objs.CounterMap)
+	whiteListTargetNodes(properties.Nodes, objs.WhitelistIps)
+	go startHealthcheck(properties.Nodes, &properties.Healthcheck, healthyNodesChannel)
+	go updateNodeMap(healthyNodesChannel, objs.TargetNodes, objs.CounterMap)
 	link := attachXDPToNetworkInterface(ifname, objs)
 	defer link.Close()
 
