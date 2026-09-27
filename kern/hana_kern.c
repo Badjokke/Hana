@@ -27,6 +27,10 @@ static struct node* retrieve_node_from_target_nodes() {
 	return node;
 }
 
+static int is_whitelist_saddr(struct iphdr* iphdr){
+        __be32* id_exists = bpf_map_lookup_elem(&whitelist_ips, &iphdr->saddr);
+        return id_exists == NULL ? 0 : 1;
+}
 
 // applies node to ip and ether header
 static void apply_node_to_ip_ether_headers(struct node* node, struct ethhdr* ether_header, struct iphdr* iphdr){
@@ -54,7 +58,8 @@ static int forward_traffic(void* data, void* data_end, struct ethhdr* ether_head
 	if (iphdr == NULL) {
 		return XDP_DROP;
 	}
-	if (iphdr->protocol != UDP_PROT ){
+
+	if (iphdr->protocol != UDP_PROT || is_whitelist_saddr(iphdr)){
 		return XDP_PASS;
 	}
 
